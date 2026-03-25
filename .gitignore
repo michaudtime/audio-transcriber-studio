@@ -1,0 +1,20 @@
+# Virtual environment
+.venv/
+
+# User config (contains secrets)
+config.bat
+
+# Recorded audio and transcriptions
+recordings/
+
+# Sample/personal audio files
+Wlacor.mp3
+Wlacor.txt
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Internal working directories
+.superpowers/

@@ -1,0 +1,13 @@
+@echo off
+REM Copy this file to config.bat and fill in your values.
+REM config.bat is gitignored and will never be committed.
+
+REM Your Hugging Face token (required for speaker diarization)
+REM Get one at: https://huggingface.co/settings/tokens
+set HF_TOKEN=hf_your_token_here
+
+REM Full path to your FFmpeg bin directory
+REM Example (WinGet install): C:\Users\YourName\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_...\ffmpeg-X.X-full_build\bin
+REM Example (manual install): C:\ffmpeg\bin
+REM Leave empty if ffmpeg is already on your system PATH
+set FFMPEG_BIN=C:\path\to\ffmpeg\bin
