@@ -28,3 +28,12 @@ PROGRESS_MAP = {
     "Performing diarization":              "  [4/4] Identifying speakers...",
     "Detected language":                   None,  # printed as-is (trimmed)
 }
+
+# Model options available for selection
+MODELS = [
+    ("large-v3-turbo", "Fast   — large-v3-turbo  (recommended)"),
+    ("large-v3",       "Best   — large-v3         (max accuracy)"),
+    ("medium",         "Light  — medium            (low-end hardware)"),
+]
+MODEL_KEYS    = [m[0] for m in MODELS]
+DEFAULT_MODEL = "large-v3-turbo"
