@@ -5,12 +5,13 @@ import threading
 from pathlib import Path
 
 from constants import SUPPRESS, PROGRESS_MAP
+from settings import load_settings
 
 # ── Config ────────────────────────────────────────────────────────────────────
 SCRIPT_DIR  = Path(__file__).parent
 PYTHON_EXE  = SCRIPT_DIR / ".venv" / "Scripts" / "python.exe"
 HF_TOKEN    = os.environ.get("HF_TOKEN", "")
-MODEL       = "large-v3-turbo"
+MODEL       = load_settings()["model"]
 FFMPEG_BIN  = os.environ.get("FFMPEG_BIN", "")
 
 AUDIO_EXTS = (
@@ -26,7 +27,7 @@ if __name__ == "__main__":
 
     # ── Header ────────────────────────────────────────────────────────────────
     print("=" * 55)
-    print("   WhisperX Transcriber  |  large-v3-turbo + diarize")
+    print(f"   WhisperX Transcriber  |  {MODEL} + diarize")
     print("=" * 55)
     print()
 
