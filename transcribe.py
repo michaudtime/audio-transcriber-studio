@@ -4,6 +4,8 @@ import os
 import threading
 from pathlib import Path
 
+from constants import SUPPRESS, PROGRESS_MAP
+
 # ── Config ────────────────────────────────────────────────────────────────────
 SCRIPT_DIR  = Path(__file__).parent
 PYTHON_EXE  = SCRIPT_DIR / ".venv" / "Scripts" / "python.exe"
@@ -16,39 +18,11 @@ AUDIO_EXTS = (
     "*.avi", "*.mov", "*.flac", "*.ogg", "*.wma", "*.aac", "*.webm"
 )
 
-# ── Noise filter — keep at module level so recorder.py can import them ────────
-SUPPRESS = (
-    "torchcodec", "libtorchcodec", "UserWarning", "warnings.warn",
-    "Traceback (most recent call last)", 'File "', "ctypes", "_dlopen",
-    "self._handle", "FileNotFoundError", "OSError: Could not load",
-    "The above exception", "raise OSError", "torch.ops.load_library",
-    "[start of libtorchcodec", "[end of libtorchcodec",
-    "Lightning automatically upgraded", "python -m lightning",
-    "HF_HUB_DISABLE", "To support symlinks", "huggingface_hub",
-    "ReproducibilityWarning", "TensorFloat-32", "torch.backends",
-    "pyannote/issues", "Xet Storage", "pip install hf_xet",
-    "use audio preloaded", "fix torchcodec installation",
-    "FFmpeg is not properly", "FFmpeg version", "versions 4, 5, 6",
-    "full-shared", "PyTorch version", "TorchCodec",
-    "pyannote\\audio\\core\\io", "  warnings.warn",
-    "it might lead to reproducibility", "re-enabled by calling",
-    ">>> import torch", ">>> torch.backends",
-    "See https://github.com/pyannote",
-)
-
-# Friendly labels for key progress lines
-PROGRESS_MAP = {
-    "Performing voice activity detection": "  [1/4] Voice activity detection...",
-    "Performing transcription":            "  [2/4] Transcribing audio...",
-    "Performing alignment":                "  [3/4] Aligning words...",
-    "Performing diarization":              "  [4/4] Identifying speakers...",
-    "Detected language":                   None,  # printed as-is (trimmed)
-}
-
 
 if __name__ == "__main__":
     # Inject FFmpeg into PATH for this process
-    os.environ["PATH"] = FFMPEG_BIN + os.pathsep + os.environ["PATH"]
+    if FFMPEG_BIN:
+        os.environ["PATH"] = FFMPEG_BIN + os.pathsep + os.environ["PATH"]
 
     # ── Header ────────────────────────────────────────────────────────────────
     print("=" * 55)
@@ -137,12 +111,12 @@ if __name__ == "__main__":
         "--device", "cuda",
         "--compute_type", "float16",
         "--diarize",
-        "--hf_token", HF_TOKEN,
         "--output_dir", str(output_dir),
         "--output_format", "txt",
     ]
 
     env = os.environ.copy()
+    env["HF_TOKEN"]                        = HF_TOKEN
     env["PYTHONWARNINGS"]                  = "ignore"
     env["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
 
@@ -155,7 +129,17 @@ if __name__ == "__main__":
 
     t = threading.Thread(target=stream_stderr, args=(proc,), daemon=True)
     t.start()
-    proc.wait()
+
+    try:
+        proc.wait()
+    except KeyboardInterrupt:
+        print("\nInterrupted — stopping transcription...")
+        proc.kill()
+        proc.wait()
+        t.join()
+        print("Stopped.")
+        sys.exit(1)
+
     t.join()
 
     result = proc

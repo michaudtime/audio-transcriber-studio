@@ -11,7 +11,7 @@ from tkinter import messagebox
 from pathlib import Path
 from datetime import datetime
 
-from transcribe import SUPPRESS, PROGRESS_MAP
+from constants import SUPPRESS, PROGRESS_MAP
 
 # ── Config ────────────────────────────────────────────────────────────────────
 SCRIPT_DIR     = Path(__file__).parent
@@ -26,8 +26,12 @@ FFMPEG_BIN     = os.environ.get("FFMPEG_BIN", "")
 
 def validate_config():
     """Validate config on startup. Returns error message string or None."""
-    if not HF_TOKEN.startswith("hf_") or HF_TOKEN == "hf_...":
-        return "HF_TOKEN is not set. Copy your token from transcribe.py into recorder.py."
+    if not HF_TOKEN or not HF_TOKEN.startswith("hf_") or HF_TOKEN == "hf_your_token_here":
+        return (
+            "HF_TOKEN is not set or is still the placeholder value.\n\n"
+            "Copy config.bat.example to config.bat and set your Hugging Face token.\n"
+            "Get a token at: huggingface.co/settings/tokens"
+        )
     return None
 
 
@@ -45,6 +49,7 @@ class RecorderApp:
         self._stderr_thread = None
         self._stop_event = threading.Event()
         self._record_start = None
+        self._recorded_duration = "00:00:00"
 
         # ── Widgets ───────────────────────────────────────────────────────────
         pad = {"padx": 16, "pady": 6}
@@ -89,9 +94,9 @@ class RecorderApp:
         elif self._state == "transcribing":
             self._stop_event.set()
             if self._proc:
-                self._proc.terminate()
+                self._proc.kill()
             if self._stderr_thread:
-                self._stderr_thread.join(timeout=5)
+                joined = self._stderr_thread.join(timeout=3)
         self.root.destroy()
 
     def _start_recording(self):
@@ -99,6 +104,9 @@ class RecorderApp:
         self._stop_event.clear()
         self._state = "recording"
         self._record_start = time.time()
+
+        # Reset timer at the start of each new recording
+        self._timer_var.set("00:00:00")
 
         self._btn.config(text="⏹  Stop", bg="#f44336")
         self._status_var.set("Recording...")
@@ -135,6 +143,8 @@ class RecorderApp:
         self._stream.stop()
         self._stream.close()
         self._stream = None
+        # Save the final recorded duration before state changes
+        self._recorded_duration = self._timer_var.get()
         self._state = "saving"
         self._btn.config(text="⏺  Record", bg="#4CAF50", state="disabled")
         self._status_var.set("Saving...")
@@ -154,6 +164,13 @@ class RecorderApp:
             return
 
         audio = np.concatenate(self._audio_chunks, axis=0)
+
+        if audio.size == 0:
+            self._state = "idle"
+            self._btn.config(state="normal")
+            self._status_var.set("Error: No audio recorded (empty buffer)")
+            return
+
         stem, wav_path = self._build_filename()
 
         try:
@@ -169,10 +186,15 @@ class RecorderApp:
         self._run_transcription(stem, wav_path)
 
     def _run_transcription(self, stem, wav_path):
+        # Guard against race where window was closed during save
+        if self._stop_event.is_set():
+            return
         self._stop_event.clear()
 
         env = os.environ.copy()
-        env["PATH"]                            = FFMPEG_BIN + os.pathsep + env["PATH"]
+        if FFMPEG_BIN:
+            env["PATH"] = FFMPEG_BIN + os.pathsep + env["PATH"]
+        env["HF_TOKEN"]                        = HF_TOKEN
         env["PYTHONWARNINGS"]                  = "ignore"
         env["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
 
@@ -182,7 +204,6 @@ class RecorderApp:
             "--device", "cuda",
             "--compute_type", "float16",
             "--diarize",
-            "--hf_token", HF_TOKEN,
             "--output_dir", str(RECORDINGS_DIR),
             "--output_format", "txt",
         ]
@@ -255,7 +276,8 @@ class RecorderApp:
         self._proc = None
         self._stderr_thread = None
         self._btn.config(state="normal")
-        self._timer_var.set("00:00:00")
+        # Keep the recorded duration visible rather than resetting to 00:00:00
+        self._timer_var.set(self._recorded_duration)
         self._name_var.set("")
         if success:
             self._status_var.set(f"Done! → {stem}.txt")

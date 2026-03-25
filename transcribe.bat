@@ -15,12 +15,15 @@ exit /b
 setlocal
 
 set SCRIPT_DIR=%~dp0
+
 if exist "%SCRIPT_DIR%config.bat" (
     call "%SCRIPT_DIR%config.bat"
 ) else (
     echo ERROR: config.bat not found. Copy config.bat.example to config.bat and fill in your values.
+    endlocal
     exit /b 1
 )
+
 if defined FFMPEG_BIN set PATH=%FFMPEG_BIN%;%PATH%
 
 echo ============================================
@@ -53,9 +56,8 @@ if "%NUM_SPEAKERS%"=="" (
         --device cuda ^
         --compute_type float16 ^
         --diarize ^
-        --hf_token %HF_TOKEN% ^
         --output_dir "%~dp1" ^
-        --output_format all
+        --output_format txt
 ) else (
     echo Using fixed speaker count: %NUM_SPEAKERS%
     echo.
@@ -66,9 +68,8 @@ if "%NUM_SPEAKERS%"=="" (
         --diarize ^
         --min_speakers %NUM_SPEAKERS% ^
         --max_speakers %NUM_SPEAKERS% ^
-        --hf_token %HF_TOKEN% ^
         --output_dir "%~dp1" ^
-        --output_format all
+        --output_format txt
 )
 
 set EXIT_CODE=%ERRORLEVEL%
