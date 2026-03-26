@@ -1,7 +1,8 @@
 # Virtual environment
 .venv/
 
-# User config (contains secrets)
+# User config (contains secrets and local preferences)
+settings.json
 config.bat
 
 # Recorded audio and transcriptions
