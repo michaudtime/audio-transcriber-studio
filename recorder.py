@@ -11,7 +11,8 @@ from tkinter import messagebox
 from pathlib import Path
 from datetime import datetime
 
-from constants import SUPPRESS, PROGRESS_MAP
+from constants import SUPPRESS, PROGRESS_MAP, MODELS
+from settings import load_settings, save_settings
 
 # ── Config ────────────────────────────────────────────────────────────────────
 SCRIPT_DIR     = Path(__file__).parent
@@ -19,7 +20,6 @@ PYTHON_EXE     = SCRIPT_DIR / ".venv" / "Scripts" / "python.exe"
 RECORDINGS_DIR = SCRIPT_DIR / "recordings"
 SAMPLE_RATE    = 16000
 DEVICE_INDEX   = None   # None = system default mic; set to int for specific device
-MODEL          = "large-v3-turbo"
 HF_TOKEN       = os.environ.get("HF_TOKEN", "")
 FFMPEG_BIN     = os.environ.get("FFMPEG_BIN", "")
 
@@ -50,6 +50,7 @@ class RecorderApp:
         self._stop_event = threading.Event()
         self._record_start = None
         self._recorded_duration = "00:00:00"
+        self._model_var = tk.StringVar(value=load_settings()["model"])
 
         # ── Widgets ───────────────────────────────────────────────────────────
         pad = {"padx": 16, "pady": 6}
@@ -60,18 +61,34 @@ class RecorderApp:
         self._name_entry.grid(row=0, column=1, **pad)
         tk.Label(root, text="(optional)", fg="gray").grid(row=1, column=1, sticky="w", padx=16)
 
+        # ── Model selection ───────────────────────────────────────────────────
+        model_frame = tk.LabelFrame(root, text="Model", padx=8, pady=4)
+        model_frame.grid(row=2, column=0, columnspan=2, padx=16, pady=(0, 4), sticky="ew")
+
+        self._model_radios = []
+        for key, label in MODELS:
+            rb = tk.Radiobutton(
+                model_frame,
+                text=label,
+                variable=self._model_var,
+                value=key,
+                command=self._on_model_change,
+            )
+            rb.pack(anchor="w")
+            self._model_radios.append(rb)
+
         self._btn = tk.Button(root, text="⏺  Record", width=20,
                               command=self._on_button, bg="#4CAF50", fg="white",
                               font=("Segoe UI", 10, "bold"))
-        self._btn.grid(row=2, column=0, columnspan=2, pady=12)
+        self._btn.grid(row=3, column=0, columnspan=2, pady=12)
 
         self._timer_var = tk.StringVar(value="00:00:00")
         tk.Label(root, textvariable=self._timer_var,
-                 font=("Courier New", 22)).grid(row=3, column=0, columnspan=2)
+                 font=("Courier New", 22)).grid(row=4, column=0, columnspan=2)
 
         self._status_var = tk.StringVar(value="Idle")
         tk.Label(root, textvariable=self._status_var,
-                 fg="gray", wraplength=280).grid(row=4, column=0, columnspan=2, pady=(4, 12))
+                 fg="gray", wraplength=280).grid(row=5, column=0, columnspan=2, pady=(4, 12))
 
         # ── Window close ──────────────────────────────────────────────────────
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
@@ -85,6 +102,12 @@ class RecorderApp:
     def _set_status(self, msg):
         """Thread-safe status update."""
         self.root.after(0, lambda: self._status_var.set(msg))
+
+    def _on_model_change(self):
+        """Persist model selection to settings.json immediately."""
+        s = load_settings()
+        s["model"] = self._model_var.get()
+        save_settings(s)
 
     def _on_close(self):
         if self._state == "recording":
@@ -147,6 +170,8 @@ class RecorderApp:
         self._recorded_duration = self._timer_var.get()
         self._state = "saving"
         self._btn.config(text="⏺  Record", bg="#4CAF50", state="disabled")
+        for rb in self._model_radios:
+            rb.config(state="disabled")
         self._status_var.set("Saving...")
         self._save_and_transcribe()
 
@@ -200,7 +225,7 @@ class RecorderApp:
 
         cmd = [
             str(PYTHON_EXE), "-m", "whisperx", str(wav_path),
-            "--model", MODEL,
+            "--model", self._model_var.get(),
             "--device", "cuda",
             "--compute_type", "float16",
             "--diarize",
@@ -276,6 +301,8 @@ class RecorderApp:
         self._proc = None
         self._stderr_thread = None
         self._btn.config(state="normal")
+        for rb in self._model_radios:
+            rb.config(state="normal")
         # Keep the recorded duration visible rather than resetting to 00:00:00
         self._timer_var.set(self._recorded_duration)
         self._name_var.set("")
