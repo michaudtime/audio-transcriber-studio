@@ -11,7 +11,7 @@ from tkinter import messagebox
 from pathlib import Path
 from datetime import datetime
 
-from constants import SUPPRESS, PROGRESS_MAP, MODELS
+from constants import SUPPRESS, PROGRESS_MAP, MODELS, MODEL_KEYS, DEFAULT_MODEL
 from settings import load_settings, save_settings
 
 # ── Config ────────────────────────────────────────────────────────────────────
@@ -50,7 +50,10 @@ class RecorderApp:
         self._stop_event = threading.Event()
         self._record_start = None
         self._recorded_duration = "00:00:00"
-        self._model_var = tk.StringVar(value=load_settings()["model"])
+        _saved_model = load_settings()["model"]
+        if _saved_model not in MODEL_KEYS:
+            _saved_model = DEFAULT_MODEL
+        self._model_var = tk.StringVar(value=_saved_model)
 
         # ── Widgets ───────────────────────────────────────────────────────────
         pad = {"padx": 16, "pady": 6}
@@ -185,6 +188,8 @@ class RecorderApp:
         if not self._audio_chunks:
             self._state = "idle"
             self._btn.config(state="normal")
+            for rb in self._model_radios:
+                rb.config(state="normal")
             self._status_var.set("Error: No audio recorded")
             return
 
@@ -193,6 +198,8 @@ class RecorderApp:
         if audio.size == 0:
             self._state = "idle"
             self._btn.config(state="normal")
+            for rb in self._model_radios:
+                rb.config(state="normal")
             self._status_var.set("Error: No audio recorded (empty buffer)")
             return
 
